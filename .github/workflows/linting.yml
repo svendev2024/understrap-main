@@ -1,0 +1,169 @@
+name: Lint
+
+on:
+  push:
+    branches: [ develop ]
+    paths:
+      - '**.php'
+      - 'phpcs.xml.dist'
+      - 'phpmd.xml'
+      - 'phpstan.neon.dist'
+  pull_request_target:
+    branches: [ develop ]
+    paths:
+      - '**.php'
+      - 'phpcs.xml.dist'
+      - 'phpmd.xml'
+      - 'phpstan.neon.dist'
+  workflow_dispatch:
+
+env:
+  php-version: '7.4'
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+
+  phpcs:
+
+    name: 'Coding Standards with PHP CodeSniffer'
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php-version }}
+          tools: cs2pr
+          coverage: none
+        env:
+          fail-fast: true
+
+      - name: Cache PHPCS cache
+        uses: actions/cache@v4
+        with:
+          path: .phpcs-cache.json
+          key: ${{ runner.os }}-phpcs-cache-${{ hashFiles('**/composer.lock', 'phpcs.xml.dist') }}
+
+      - name: Install Composer dependencies
+        uses: "ramsey/composer-install@v3"
+
+      - name: Auto fix coding standards
+        run: composer phpcs-fix
+        continue-on-error: true
+
+      - name: Commit coding standards fixes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Fix coding standards with phpcbf
+
+      - name: Check coding standards
+        run: composer phpcs -- -q -n --report=checkstyle | cs2pr
+
+  php-lint:
+
+    name: 'Syntax with PHP Parallel Lint'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php-version }}
+          tools: cs2pr, parallel-lint
+          coverage: none
+        env:
+          fail-fast: true
+
+      - name: Check syntax
+        run: parallel-lint --checkstyle . | cs2pr
+
+  phpstan:
+
+    name: 'Static Analysis with PHPStan'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php-version }}
+          coverage: none
+        env:
+          fail-fast: true
+
+      - name: Cache PHPStan cache
+        uses: actions/cache@v4
+        with:
+          path: .phpstan-cache
+          key: ${{ runner.os }}-phpstan-cache-${{ hashFiles('**/composer.lock', 'phpstan.neon.dist') }}
+
+      - name: Install Composer dependencies
+        uses: "ramsey/composer-install@v3"
+
+      - name: Analyse
+        id: phpstan
+        run: composer phpstan -- --error-format=github
+
+      - name: Update basefile
+        run: composer phpstan-baseline
+
+      - name: Commit updated basefile
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update PHPStan basefile
+
+  phpmd:
+
+    name: 'Mess Detection with PHPMD'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.head_ref }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.php-version }}
+          tools: phpmd
+          coverage: none
+        env:
+          fail-fast: true
+
+      - name: Detect mess
+        run: phpmd . github phpmd.xml
+
+      - name: Update basefile
+        run: phpmd . ansi phpmd.xml --generate-baseline
+
+      - name: Commit updated basefile
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update PHPMD basefile
+          branch: ${{ github.head_ref }}

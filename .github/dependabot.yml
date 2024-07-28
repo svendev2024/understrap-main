@@ -1,0 +1,63 @@
+# Set up for GitHub Actions, npm and Composer
+
+version: 2
+updates:
+
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+    - "dependencies"
+    open-pull-requests-limit: 10
+    rebase-strategy: auto
+    schedule:
+      interval: "monthly"
+    target-branch: "develop"
+    groups:
+      github-actions:
+        patterns:
+        - "*"
+
+  # Maintain dependencies for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    labels:
+    - "dependencies"
+    open-pull-requests-limit: 10
+    rebase-strategy: auto
+    schedule:
+      interval: "monthly"
+    target-branch: "develop"
+    versioning-strategy: increase
+    groups:
+      npm-assets:
+        patterns:
+        - "bootstrap*"
+        - "*popper*"
+        - "font-awesome"
+      npm-build:
+        patterns:
+        - "*"
+        exclude-patterns:
+        - "bootstrap*"
+        - "*popper*"
+        - "font-awesome"
+
+  # Maintain dependencies for Composer
+  - package-ecosystem: "composer"
+    allow:
+    - dependency-type: direct
+    - dependency-type: indirect
+    directory: "/"
+    labels:
+    - "dependencies"
+    open-pull-requests-limit: 10
+    rebase-strategy: auto
+    schedule:
+      interval: "monthly"
+    target-branch: "develop"
+    versioning-strategy: increase
+    groups:
+      composer:
+        patterns:
+        - "*"
